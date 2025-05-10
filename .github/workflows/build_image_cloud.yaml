@@ -108,7 +108,7 @@ jobs:
         env:
           args: ${{ env.ARGS }}
         run: |
-          bash <(curl -fsSL https://raw.githubusercontent.com/mschirrmeister/archlinux-installer/dev/create-installation-media) --model=${{ matrix.model_name }} --image=Arch-Linux-aarch64-cloudimg-(date '+%Y%m%d').0.img --bootloader=grub --compress $args
+          bash <(curl -fsSL https://raw.githubusercontent.com/mschirrmeister/archlinux-installer/dev/create-installation-media) --model=${{ matrix.model_name }} --image=Arch-Linux-aarch64-cloudimg-$(date '+%Y%m%d').0.img --bootloader=grub --compress $args
           cp -r out/Arch-Linux-aarch64-cloudimg-*.xz .
 
       - name: Add xze metadata to Image (OOWOW)
