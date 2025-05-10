@@ -1,0 +1,136 @@
+name: Build Arch Linux Installer (UEFI)
+
+# Controls when the workflow will run
+on:
+  push:
+    tags:
+      #- 'b*'
+      - 'UEFI*'
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  build:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+    name: Build Images
+    permissions:
+      contents: write
+
+    strategy:
+      matrix:
+        model_name:
+          # Generic
+          - generic
+          # Asahi (Apple Silicon)
+          # - asahi
+          ## Raspberry Pi UEFI ##
+          #- raspberrypi
+          ## RK3588-EDK2 ##
+          # Radxa
+          # - radxa-rock-5a
+          # - radxa-rock-5b
+          # - radxa-rock-5bplus
+          # - radxa-rock-5c
+          # - radxa-rock-5-itx
+          # - radxa-cm5
+          # Orange Pi
+          # - orangepi-5 #rockchip-rk3588s-orangepi-5
+          # - orangepi-5plus
+          # Khadas
+          # - khadas-edge2
+          # Nano Pi
+          # - nanopc-t6
+          # - nanopi-r6c
+          # - nanopi-r6s
+          #- nanopi-m6
+          # - nanopc-cm3588-nas
+          # Firefly
+          # - firefly-roc-rk3588s-pc
+          # - firefly-itx-3588j
+          # - firefly-aio-3588q
+          # Other Rockchip
+          # - indiedroid-nova #9tripod-rk3588s
+          # - mixtile-blade3 #rockchip-rk3588-blade3-v101-linux
+          # - stationpc-station-m3
+          # - mekotronics-r58x
+          # - mekotronics-r58-mini
+          # - hinlink-h88k
+          # - fydetab-duo
+          # - buzztv-powerstation-6
+          # Add more models as needed
+
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - name: Checkout Repository
+        uses: actions/checkout@v2
+
+      - name: Preparing
+        run: |
+          for model in ${{ matrix.model_name }}; do
+            echo "Building image for $model"
+            case $model in
+              # radxa-* | khadas-* | mixtile-* | mekotronics-* | stationpc-* | hinlink-* | firefly-* | orangepi-* | nanopi-* | nanopc-* | indiedroid-*)
+                # if [[ "$model" == "orangepi"* ]] || [[ "$model" == "nanopi"* ]] || [[ "$model" == "nanopc"* ]] || [[ "$model" == "indiedroid"* ]] || [[ "$model" == "radxa-cm"* ]]; then
+                #   bootfw_url="https://github.com/kwankiu/edk2-rk3588/releases/download/v1.1/${model}_UEFI_Release_v1.1.img"
+                # else
+                #   bootfw_url="https://github.com/kwankiu/edk2-rk3588/releases/download/v1.1/${model#*-}_UEFI_Release_v1.1.img"
+                # fi
+                # args="--kernel=linux-aarch64-rockchip-bsp6.1-joshua-git --addpkg=linux-firmware-joshua-git -b --bootpartstart=9MiB --bootfirmware=firmware.img"
+                # ;;
+              # fydetab-*)
+              #   bootfw_url="https://github.com/kwankiu/edk2-rk3588/releases/download/v1.1/${model}_UEFI_Release_v1.1.img"
+              #   args="--kernel=linux-aarch64-rockchip-bsp6.1-fydetab-git --addpkg=linux-firmware-joshua-git,firmware-fydetab -b --bootpartstart=9MiB --bootfirmware=firmware.img"
+              #   ;;
+              # asahi)
+              #   args="--kernel=linux-asahi --addpkg=linux-asahi-loader -e --bootpartstart=1MB --bootpartend=201MB"
+              #   ;;
+              *)
+                # Generic
+                args="--kernel=linux --bootpart --vmimages=qcow2,vmdk"
+                ;;
+            esac
+          done
+          echo "ARGS=$args" >> $GITHUB_ENV
+          echo "BOOTFW_URL=$bootfw_url" >> $GITHUB_ENV
+  
+      # - name: Download UEFI Firmware
+      #   if: ${{ env.BOOTFW_URL }}
+      #   env:
+      #     bootfw_url: ${{ env.BOOTFW_URL }}
+      #   run: |
+      #     curl -L ${bootfw_url} -o firmware.img
+      #     ls -l
+
+      - name: Build Image
+        env:
+          args: ${{ env.ARGS }}
+        run: |
+          bash <(curl -fsSL https://raw.githubusercontent.com/mschirrmeister/archlinux-installer/dev/create-installation-media) --model=${{ matrix.model_name }} --image=Arch-Linux-aarch64-cloudimg-(date '+%Y%m%d').0.img --bootloader=grub --compress $args
+          cp -r out/Arch-Linux-aarch64-cloudimg-*.xz .
+
+      - name: Add xze metadata to Image (OOWOW)
+        if: startsWith(matrix.model_name, 'khadas')
+        run: |
+          bash <(curl -fsSL https://raw.githubusercontent.com/khadas/krescue/master/tools/xze) "${{ matrix.model_name }}-archlinux-installer-uefi.img.xz" \
+             --meta \
+             label="Arch Linux Installer" \
+             builder="Arch Linux Installer" \
+             date="$(LANG=C TZ= date)" \
+             match=BOARD=$(echo "${{ matrix.model_name }}" | awk -F'-' '{print toupper(substr($2,1,1)) substr($2,2)}') \
+             link=https://github.com/kwankiu/archlinux-installer/wiki \
+             duration=250 \
+             desc="Community-built Arch Linux Installer for ARM (Aarch64), UEFI Image built for $(echo "${{ matrix.model_name }}" | sed 's/-/ /g; s/\b\(.\)/\u\1/g') on $(LANG=C TZ= date)"
+          # Rename image name to begin with the board model (required to prevent OOWOW hiding the image)
+          mv ${{ matrix.model_name }}-archlinux-installer-uefi.img.xz $(echo "${{ matrix.model_name }}" | awk -F'-' '{print substr($2,1)}')-khadas-archlinux-installer-uefi.img.xz
+        continue-on-error: true
+
+      - name: Upload to GitHub Release
+        uses: ncipollo/release-action@v1
+        with:
+            artifacts: "Arch-Linux-aarch64-cloudimg-*.xz"
+            makeLatest: false
+            allowUpdates: true
+            omitBody: true
