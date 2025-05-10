@@ -730,28 +730,28 @@ else
 fi
 
 # Install boot partition and kernel
-if [ -z "$argkrl" ]; then
-    title
-    colorecho "$GREEN" "Select a kernel to install:"
-    options=("linux-aarch64 - Linux Aarch64 Mainline Kernel")
-    options+=("Enter a kernel package (from adrepo)")
-    select_option "${options[@]}"
-    answer=$?
-else
-    answer=99
-fi
+# if [ -z "$argkrl" ]; then
+#     title
+#     colorecho "$GREEN" "Select a kernel to install:"
+#     options=("linux-aarch64 - Linux Aarch64 Mainline Kernel")
+#     options+=("Enter a kernel package (from adrepo)")
+#     select_option "${options[@]}"
+#     answer=$?
+# else
+#     answer=99
+# fi
 
-if [ "$answer" = 0 ] || [ "$argkrl" = "linux" ]; then
-    echo "Using mainline kernel"
-    argkrl="linux"
-else
-    if [ -z "$argkrl" ]; then
-        read -p "Enter kernel package name:" answer
-    else
-        answer=$argkrl
-    fi
-    install_kernel $answer
-fi
+# if [ "$answer" = 0 ] || [ "$argkrl" = "linux" ]; then
+#     echo "Using mainline kernel"
+#     argkrl="linux"
+# else
+#     if [ -z "$argkrl" ]; then
+#         read -p "Enter kernel package name:" answer
+#     else
+#         answer=$argkrl
+#     fi
+#     install_kernel $answer
+# fi
 
 ################################################################
 # Start creating the installation media
@@ -909,7 +909,24 @@ if [ "$argkrl" = "linux" ]; then
     sudo arch-chroot $root_mount_dir /bin/bash <<END
     pacman-key --init
     pacman-key --populate archlinuxarm
-    pacman -Sy linux-aarch64 linux-aarch64-headers linux-firmware --needed --noconfirm
+    sed -i 's/^#ParallelDownloads\\s*=\\s*\\([0-9]\\{1,3\\}\\)\\?$/ParallelDownloads = 50/' /etc/pacman.conf
+    # pacman -Sy linux-aarch64 linux-aarch64-headers linux-firmware --needed --noconfirm
+    pacman -Sy linux-aarch64 --needed --noconfirm --nodeps --nodeps
+    echo "Removing linux-firmware ..."
+    pacman -Rdd linux-firmware linux-firmware-whence --noconfirm
+    echo "Running full system upgrade ..."
+    pacman -Syu --noconfirm
+    echo "Installing cloud-init ..."
+    curl -LO --output-dir /tmp/ https://gist.githubusercontent.com/mschirrmeister/a009b8ce91a20bcc214c66f62aced9c9/raw/8c66f4d9bfb3ea05828f37ce420680eb007191de/cloud-init-23.1.2-2-any.pkg.tar.xz
+    pacman -U /tmp/cloud-init-23.1.2-2-any.pkg.tar.xz --noconfirm
+    rm -f /tmp/cloud-init-23.1.2-2-any.pkg.tar.xz
+    echo "Enabling cloud-init services ..."
+    systemctl enable cloud-init-local.service
+    systemctl enable cloud-init.service
+    systemctl enable cloud-config.service
+    systemctl enable cloud-final.service
+    systemctl enable cloud-init-hotplugd.socket
+    echo "Clearing package cache ..."
     yes | pacman -Scc
 END
 
@@ -1061,28 +1078,28 @@ fi
 
 title
 # Download Installer
-colorecho "$GREEN" "Downloading Installer ..."
+# colorecho "$GREEN" "Downloading Installer ..."
 
-if [ "$arginstaller" == "installer" ] || [ -z "$arginstaller" ]; then
-    installer_name="arch-installer"
-    compiled_pkg_dir="/usr/lib/installer/packages"
-    curl -LJO https://raw.githubusercontent.com/kwankiu/archlinux-installer/$branch/$installer_name
-    # Download and Copy ACU
-    curl -LJO https://raw.githubusercontent.com/kwankiu/acu/$acuver/acu
-    sudo chmod +x acu
-    sudo cp -r acu "$root_mount_dir/usr/bin/acu"
-    sudo rm -rf acu
-    # Download and Copy ACU Config for TUI Installer
-    curl -LJO https://raw.githubusercontent.com/kwankiu/archlinux-installer/$branch/config/acu_config.yaml
-    sudo mkdir -p "$root_mount_dir/usr/lib/installer/.acu/config"
-    sudo cp -r acu_config.yaml "$root_mount_dir/usr/lib/installer/.acu/config/config.yaml"
-    sudo rm -rf acu_config.yaml
-fi
+# if [ "$arginstaller" == "installer" ] || [ -z "$arginstaller" ]; then
+#     installer_name="arch-installer"
+#     compiled_pkg_dir="/usr/lib/installer/packages"
+#     curl -LJO https://raw.githubusercontent.com/kwankiu/archlinux-installer/$branch/$installer_name
+#     # Download and Copy ACU
+#     curl -LJO https://raw.githubusercontent.com/kwankiu/acu/$acuver/acu
+#     sudo chmod +x acu
+#     sudo cp -r acu "$root_mount_dir/usr/bin/acu"
+#     sudo rm -rf acu
+#     # Download and Copy ACU Config for TUI Installer
+#     curl -LJO https://raw.githubusercontent.com/kwankiu/archlinux-installer/$branch/config/acu_config.yaml
+#     sudo mkdir -p "$root_mount_dir/usr/lib/installer/.acu/config"
+#     sudo cp -r acu_config.yaml "$root_mount_dir/usr/lib/installer/.acu/config/config.yaml"
+#     sudo rm -rf acu_config.yaml
+# fi
 
 # Copy Installer
-colorecho "$GREEN" "Copying Installer ..."
-sudo chmod +x $installer_name
-sudo cp -r "$installer_name" "$root_mount_dir/usr/bin/installer"
+# colorecho "$GREEN" "Copying Installer ..."
+# sudo chmod +x $installer_name
+# sudo cp -r "$installer_name" "$root_mount_dir/usr/bin/installer"
 #if [ -n "$argmodel" ]; then
     #sudo sed -i "s/^#install_target=\".*\"/install_target=\"$argmodel\"/g" "$root_mount_dir/usr/bin/installer" # (optional)
 #fi
@@ -1096,49 +1113,49 @@ if [ ! -z "$is_img" ]; then
 fi
 
 # Copy Script
-if [ -n "$argscripts" ]; then
-    colorecho "$GREEN" "Copying Script ..."
-    sudo chmod +x "$argscripts"
-    sudo cp -r "$argscripts" "$root_mount_dir/usr/bin/script.sh"
-fi
+# if [ -n "$argscripts" ]; then
+#     colorecho "$GREEN" "Copying Script ..."
+#     sudo chmod +x "$argscripts"
+#     sudo cp -r "$argscripts" "$root_mount_dir/usr/bin/script.sh"
+# fi
 
 # Download drivers and installer deps 
-sudo mkdir -p "${root_mount_dir}${compiled_pkg_dir}"
-add_pkg wpa_supplicant-2 core
-add_pkg dialog core
-add_pkg pcsclite extra
-add_pkg duktape extra
-add_pkg polkit-1 extra
-add_pkg glibc-2 core
-add_pkg "sudo" core
-add_pkg rate-mirrors
-if [ -n "$argaddpkg" ]; then
-    # Split the input by commas
-    IFS=',' read -r -a argaddpkg <<< "$argaddpkg"
-    # Loop through each package
-    for pkg in "${argaddpkg[@]}"; do
-        pkg=$(echo "$pkg" | xargs) # Trim whitespace
-        add_pkg "$pkg"
-    done
-fi
-ls "${root_mount_dir}${compiled_pkg_dir}" #DEBUG
+# sudo mkdir -p "${root_mount_dir}${compiled_pkg_dir}"
+# add_pkg wpa_supplicant-2 core
+# add_pkg dialog core
+# add_pkg pcsclite extra
+# add_pkg duktape extra
+# add_pkg polkit-1 extra
+# add_pkg glibc-2 core
+# add_pkg "sudo" core
+# add_pkg rate-mirrors
+# if [ -n "$argaddpkg" ]; then
+#     # Split the input by commas
+#     IFS=',' read -r -a argaddpkg <<< "$argaddpkg"
+#     # Loop through each package
+#     for pkg in "${argaddpkg[@]}"; do
+#         pkg=$(echo "$pkg" | xargs) # Trim whitespace
+#         add_pkg "$pkg"
+#     done
+# fi
+# ls "${root_mount_dir}${compiled_pkg_dir}" #DEBUG
 # Remove the temporary directory
 sudo rm -rf "$pkg_tar_dir"
 sudo rm -rf $installer_name
 
 # Run installer as a system service at first boot
-if [ -n "$argscripts" ]; then
-    colorecho "$GREEN" "Chroot into system ..."
-    sudo arch-chroot $root_mount_dir /bin/bash <<END
-    /usr/bin/installer --create-installer-service
-    /usr/bin/script.sh "$argmodel"
-END
-else
-    colorecho "$GREEN" "Chroot into system ..."
-    sudo arch-chroot $root_mount_dir /bin/bash <<END
-    /usr/bin/installer --create-installer-service
-END
-fi
+# if [ -n "$argscripts" ]; then
+#     colorecho "$GREEN" "Chroot into system ..."
+#     sudo arch-chroot $root_mount_dir /bin/bash <<END
+#     /usr/bin/installer --create-installer-service
+#     /usr/bin/script.sh "$argmodel"
+# END
+# else
+#     colorecho "$GREEN" "Chroot into system ..."
+#     sudo arch-chroot $root_mount_dir /bin/bash <<END
+#     /usr/bin/installer --create-installer-service
+# END
+# fi
 
 # Unmount the boot and root partitions
 sudo umount $root_mount_dir
